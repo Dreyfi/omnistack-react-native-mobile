@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Image, View, Text, TextInput, TouchableOpacity, Keyboard} from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import { requestPermissionsAsync, getCurrentPositionAsync } from 'expo-location';
-import { MaterialIcons } from '@expo/vector-icons'
+import { MaterialIcons } from '@expo/vector-icons';
+import api from '../services/api';
 
 function Main({ navigation }) {
-
+    const [devs, setDevs] = useState([]);
     const [currentRegion, setCurrentRegion ] = useState(null);
+    const [techs, setTechs ] = useState('');
 
     useEffect(() => {
-        async function loadingINitialPosition() {
+        async function loadInitialPosition() {
             const { granted } = await requestPermissionsAsync();
 
             if(granted) {
@@ -27,8 +29,25 @@ function Main({ navigation }) {
                 })
             }
         }
-        loadingINitialPosition();
+        loadInitialPosition();
     }, []);
+
+    async function loadDevs() {
+        const { latitude, longitude } = currentRegion;
+
+        const response = await api.get('/search', {
+            params: {
+                latitude,
+                longitude,
+                techs
+            }
+        })
+        setDevs(response.data.devs)
+    }
+
+    function handleRegionChanged(region) {
+        setCurrentRegion(region);
+    }
 
     if(!currentRegion) {
         return null;
@@ -36,19 +55,32 @@ function Main({ navigation }) {
 
     return (
     <>
-    <MapView initialRegion={currentRegion} style={{ flex:1 }}>
-        <Marker coordinate={{latitude: -23.5936717, longitude: -46.7917419}} >
-            <Image style={styles.avatar} source={{uri: 'https://avatars2.githubusercontent.com/u/3505903?s=460&v=4'}} />
-            <Callout onPress={() => {
-                navigation.navigate('Profile', { github_username: 'dreyfi' })
-            }}>
-                <View style={styles.callout}>
-                    <Text style={styles.devName}>Dry F.</Text>
-                    <Text style={styles.devBio}>Fullstack developer PHP, Javascript and Flutter.</Text>
-                    <Text style={styles.devTechs}>PHP, Javascript and Flutter.</Text>
-                </View>
-            </Callout>
-        </Marker>
+    <MapView 
+        onRegionChangeComplete={handleRegionChanged}
+        initialRegion={currentRegion} 
+        style={{ flex:1 }}
+        >
+        {devs.map(dev =>(            
+            <Marker 
+                key={dev._id}
+                coordinate={{
+                    latitude: dev.location.coordinates[0], 
+                    longitude: dev.location.coordinates[1]
+                    }} >
+                <Image 
+                    style={styles.avatar} 
+                    source={{uri: dev.avatar_url}} />
+                <Callout onPress={() => {
+                    navigation.navigate('Profile', { github_username: dev.github_username })
+                }}>
+                    <View style={styles.callout}>
+                        <Text style={styles.devName}>{dev.name}</Text>
+                        <Text style={styles.devBio}>{dev.bio}</Text>
+                        <Text style={styles.devTechs}>{dev.techs.join(', ')}</Text>
+                    </View>
+                </Callout>
+            </Marker> 
+        ))}
     </MapView>
     <View style={styles.searchForm}>
         <TextInput
@@ -57,9 +89,11 @@ function Main({ navigation }) {
             placeholderTextColor="#999"
             autoCapitalize="words"
             autoCorrect={false}
+            value={techs}
+            onChangeText={setTechs}
         />
 
-        <TouchableOpacity onPress={() => {}} style={styles.loadButton}>
+        <TouchableOpacity onPress={loadDevs} style={styles.loadButton}>
             <MaterialIcons name="my-location" size={20} color="#fff"/>
         </TouchableOpacity>
     </View>
